@@ -1,6 +1,3 @@
-[[_TOC_]]
-
----
 # Preparations
 ## Azure Service Connection
 - Azure DevOps -> Project settings -> Service connections -> New service connection

@@ -1,7 +1,3 @@
-[[_TOC_]]
-
----
-
 # Overview
 This template includes a sample Web API architecture with and without virtual networks and pipelines that automate deployment and integration test process. The pipelines deploy Azure resources and sample codes for the Web API and Functions, and then send requests to the API in the integration steps. Follow the instruction in [Getting-Started](./docs/Getting-started.md) to run this template.
 
