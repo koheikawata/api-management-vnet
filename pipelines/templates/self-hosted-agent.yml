@@ -1,0 +1,91 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: aadObjectidSvc
+  type: string
+- name: winDockerfileDirectory
+  type: string
+- name: winBicepFilePath
+  type: string
+- name: winBicepParameterFilePath
+  type: string
+- name: linDockerfileDirectory
+  type: string
+- name: linBicepFilePath
+  type: string
+- name: linBicepParameterFilePath
+  type: string
+
+stages:
+# - stage: WindowsAgent
+#   jobs:
+#   - job: WindowsAgent
+#     variables:
+#     - template: ./variables.yml
+#     steps:
+#     - task: AzureCLI@2
+#       displayName: Docker build and push
+#       inputs:
+#         azureSubscription: ${{ parameters.azureSvcName }}
+#         scriptType: ps
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           $acrkey = az acr credential show --name $(ACR_NAME) --query passwords[0].value -o tsv
+#           cd ${{ parameters.winDockerfileDirectory }}
+#           docker login -u $(ACR_NAME) -p $acrkey $(ACR_NAME).azurecr.io
+#           docker build --rm -f Dockerfile -t $(ACR_NAME).azurecr.io/$(WINAGENT_REPOSITORY_NAME):$(Build.BuildNumber) .
+#           docker push $(ACR_NAME).azurecr.io/$(WINAGENT_REPOSITORY_NAME):$(Build.BuildNumber)
+#     - task: AzureCLI@2
+#       displayName: Deploy agent
+#       inputs:
+#         azureSubscription: ${{ parameters.azureSvcName }}
+#         scriptType: ps
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           az keyvault set-policy --name $(KEYVAULT_NAME) --secret-permissions get set --object-id ${{ parameters.aadObjectidSvc }}
+#           $azpToken = az keyvault secret show --vault-name $(KEYVAULT_NAME) --name $(KVSECRET_NAME_AZP_TOKEN) --query value -o tsv
+#           az group create --name $(RESOURCE_GROUP_NAME) --location $(LOCATION)
+#           az deployment group create --resource-group $(RESOURCE_GROUP_NAME) --template-file ${{ parameters.winBicepFilePath }} `
+#             --parameters ${{ parameters.winBicepParameterFilePath }} `
+#               base_name=$(BASE_NAME) `
+#               environment_symbol=$(ENVIRONMENT_SYMBOL) `
+#               shagent_repository_name=$(WINAGENT_REPOSITORY_NAME) `
+#               image_tag=$(Build.BuildNumber) `
+#               azp_token=$azpToken
+- stage: LinuxAgent
+  jobs:
+  - job: LinuxAgent
+    variables:
+    - template: ./variables.yml
+    - name: AzpToken
+      value: $[ stageDependencies.KeyVault.AZP_TOKEN.outputs['AZP_TOKEN.AZP_TOKEN'] ]
+    steps:
+    - task: AzureCLI@2
+      displayName: Docker build and push
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          acrkey=$(az acr credential show --name $(ACR_NAME) --query passwords[0].value -o tsv)
+          cd ${{ parameters.linDockerfileDirectory }}
+          docker login -u $(ACR_NAME) -p $acrkey $(ACR_NAME).azurecr.io
+          docker build --rm -f Dockerfile -t $(ACR_NAME).azurecr.io/$(LINAGENT_REPOSITORY_NAME):$(Build.BuildNumber) .
+          docker push $(ACR_NAME).azurecr.io/$(LINAGENT_REPOSITORY_NAME):$(Build.BuildNumber)
+    - task: AzureCLI@2
+      displayName: Deploy Linux agent
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az keyvault set-policy --name $(KEYVAULT_NAME) --secret-permissions get set --object-id ${{ parameters.aadObjectidSvc }}
+          azpToken=$(az keyvault secret show --vault-name $(KEYVAULT_NAME) --name $(KVSECRET_NAME_AZP_TOKEN) --query value -o tsv)
+          az group create --name $(RESOURCE_GROUP_NAME) --location $(LOCATION)
+          az deployment group create --resource-group $(RESOURCE_GROUP_NAME) --template-file ${{ parameters.linBicepFilePath }} \
+            --parameters ${{ parameters.linBicepParameterFilePath }} \
+              base_name=$(BASE_NAME) \
+              environment_symbol=$(ENVIRONMENT_SYMBOL) \
+              shagent_repository_name=$(LINAGENT_REPOSITORY_NAME) \
+              image_tag=$(Build.BuildNumber) \
+              azp_token=$azpToken

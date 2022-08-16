@@ -1,0 +1,119 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: apiProjectDirectory
+  type: string
+- name: apiProjectPath
+  type: string
+- name: apiTestProjectPath
+  type: string
+- name: apiPublishPath
+  type: string
+- name: swaggerPath
+  type: string
+- name: apiDllPath
+  type: string
+
+stages:
+- stage: WebApiDeploy
+  jobs:
+  - job: WebApiDeploy
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: UseDotNet@2
+      displayName: Use .NET 6 sdk
+      inputs:
+        packageType: sdk
+        version: 6.0.x
+        installationPath: $(DOTNET_PATH)
+    - task: DotNetCoreCLI@2
+      displayName: dotnet restore
+      inputs:
+        command: restore
+        projects: ${{ parameters.apiProjectPath }}
+    - task: DotNetCoreCLI@2
+      displayName: dotnet build
+      inputs:
+        command: build
+        projects: ${{ parameters.apiProjectPath }}
+        arguments: --configuration $(BUILD_CONFIGURATION) /WarnAsError
+    - task: DotNetCoreCLI@2
+      displayName: dotnet test
+      inputs:
+        command: test
+        projects: ${{ parameters.apiTestProjectPath }}
+        arguments: --configuration $(BUILD_CONFIGURATION) --collect:"XPlat Code Coverage"
+        publishTestResults: true
+    - script: |
+        dotnet tool install -g dotnet-reportgenerator-globaltool
+        reportgenerator -reports:$(Agent.TempDirectory)/**/coverage.cobertura.xml -targetdir:$(Build.SourcesDirectory)/CodeCoverage -reporttypes:'HtmlInline_AzurePipelines;Cobertura'
+      displayName: Create Code coverage report
+    - task: PublishCodeCoverageResults@1
+      displayName: Publish code coverage report
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: $(Build.SourcesDirectory)/CodeCoverage/Cobertura.xml
+    - task: DotNetCoreCLI@2
+      displayName: dotnet new tool-manifest
+      inputs:
+        command: custom
+        custom: new
+        arguments: tool-manifest
+        workingDirectory: ${{ parameters.apiProjectDirectory }}
+    - task: DotNetCoreCLI@2
+      displayName: dotnet tool install
+      inputs:
+        command: custom
+        custom: tool
+        arguments: install Swashbuckle.AspNetCore.Cli --version $(SWASHBUCKLE_VERSION)
+        workingDirectory: ${{ parameters.apiProjectDirectory }}
+    - task: DotNetCoreCLI@2
+      displayName: dotnet swagger tofile
+      inputs:
+        command: custom
+        custom: swagger
+        arguments: tofile --output ${{ parameters.swaggerPath }} ${{ parameters.apiDllPath }} $(SWAGGER_VERSION)
+        workingDirectory: ${{ parameters.apiProjectDirectory }}
+    - task: AzureCLI@2
+      displayName: Deploy API to API Management
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az apim api import -g $(RESOURCE_GROUP_NAME) \
+            --service-name $(API_MANAGEMENT_NAME) \
+            --api-id $(API_NAME) \
+            --path /$(API_NAME) \
+            --specification-format OpenApiJson \
+            --specification-path ${{ parameters.swaggerPath }} \
+            --service-url $(API_MANAGEMENT_SERVICE_URL)
+    - task: DotNetCoreCLI@2
+      displayName: dotnet publish
+      inputs:
+        command: publish
+        projects: ${{ parameters.apiProjectPath }}
+        publishWebProjects: false
+        zipAfterPublish: true
+        arguments: --configuration $(BUILD_CONFIGURATION) --output ${{ parameters.apiPublishPath }}
+    - task: PublishBuildArtifacts@1
+      displayName: Publish build artifacts
+      inputs:
+        PathtoPublish: ${{ parameters.apiPublishPath }}
+        ArtifactName: $(API_NAME)
+        publishLocation: Container
+    - task: DownloadBuildArtifacts@0
+      displayName: Download artifacts
+      inputs:
+        buildType: current
+        downloadType: single
+        artifactName: $(API_NAME)
+        downloadPath: $(Build.StagingDirectory)
+    - task: AzureWebApp@1
+      displayName: Deploy Web App
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        appType: webApp
+        appName: $(APPSERVICE_NAME)
+        package: $(Build.StagingDirectory)/$(API_NAME)/$(API_NAME).zip

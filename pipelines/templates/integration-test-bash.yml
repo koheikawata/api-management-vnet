@@ -1,0 +1,52 @@
+parameters:
+- name: stageName
+  type: string
+- name: azureSvcName
+  type: string
+- name: aadTenantId
+  type: string
+- name: aadAppidClient
+  type: string
+- name: aadAppidBackend
+  type: string
+- name: url
+  type: string
+
+stages:
+- stage: ${{ parameters.stageName }}
+  jobs:
+  - job: ${{ parameters.stageName }}
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: AzureCLI@2
+      displayName: Execute integration test
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          Uri="${{ parameters.url }}/$(API_NAME)/Weatherforecast"
+          UriMessage="${{ parameters.url }}/$(API_NAME)/Weatherforecast/message"
+          clientSecret=$(az keyvault secret show --vault-name $(KEYVAULT_NAME) --name $(KVSECRET_NAME_AADCLIENT) --query value -o tsv)
+          authorizeUri="https://login.microsoftonline.com/${{ parameters.aadTenantId }}/oauth2/v2.0/token"
+          token=$(curl -X POST $authorizeUri -d "client_id=${{ parameters.aadAppidClient }}&grant_type=client_credentials&scope=api://${{ parameters.aadAppidBackend }}/.default&client_secret=$clientSecret" | jq ".access_token" | tr -d \")
+          echo "GET"
+          curl --insecure -X GET $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" | jq .
+          bodyPost='{"country" : "Japan", "city" : "Tokyo", "temperatureC" : "35", "summary" : "Sunny"}'
+          resultPost=$(curl --insecure -X POST $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d "$bodyPost")
+          bodyMessage='{"country" : "New Zealand", "city" : "Auckland", "temperatureC" : "10", "summary" : "Cloudy"}'
+          resultMessage=$(curl --insecure -X POST $UriMessage -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d "$bodyMessage")
+          sleep 10
+          echo "GET after POST"
+          curl --insecure -X GET $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" | jq .
+          resultPostId=`echo $resultPost | jq ".id" | tr -d \"`
+          resultMessageId=`echo $resultMessage | jq ".id" | tr -d \"`
+          bodyDelete="{\"id\" : \"$resultPostId\"}"
+          bodyDeleteMessage="{\"id\" : \"$resultMessageId\"}"
+          curl --insecure -X DELETE $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d "$bodyDelete"
+          echo "Deleted a record with ID: $resultPostId"
+          curl --insecure -X DELETE $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d "$bodyDeleteMessage"
+          echo "Deleted a record with ID: $resultMessageId"
+          echo "GET after DELETE"
+          curl --insecure -X GET $Uri -H "Content-Type: application/json" -H "Authorization: Bearer $token" | jq .

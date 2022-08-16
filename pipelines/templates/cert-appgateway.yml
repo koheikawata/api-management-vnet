@@ -1,0 +1,40 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: aadObjectidSvc
+  type: string
+
+stages:
+- stage: CertAppGateway
+  jobs:
+  - job: CertAppGateway
+    pool:
+      vmImage: windows-latest
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: AzurePowerShell@5
+      displayName: Create certificate for AppGateway
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        azurePowerShellVersion: latestVersion
+        pwsh: true
+        errorActionPreference: silentlyContinue
+        ScriptType: InlineScript
+        Inline: |
+          Install-Module -Name Az.ManagedServiceIdentity
+          if(!(Get-AzResourceGroup -Name $env:RESOURCE_GROUP_NAME)){
+            New-AzResourceGroup -Name $env:RESOURCE_GROUP_NAME -Location $env:LOCATION
+          }
+          if(!(Get-AzKeyVault -VaultName $env:KEYVAULT_NAME)){
+            $keyVault = New-AzKeyVault -Name $env:KEYVAULT_NAME -ResourceGroupName $env:RESOURCE_GROUP_NAME -Location $env:LOCATION
+          }
+          Set-AzKeyVaultAccessPolicy -VaultName $env:KEYVAULT_NAME -PermissionsToCertificates get,create -ObjectId ${{ parameters.aadObjectidSvc }}
+          if(!(Get-AzKeyVaultCertificate -VaultName $env:KEYVAULT_NAME -Name $env:KVCERT_NAME_AGW)){
+            $policy = New-AzKeyVaultCertificatePolicy `
+                      -ValidityInMonths 12 `
+                      -SubjectName "CN=$env:APPSERVICE_NAME.$env:LOCATION.cloudapp.azure.com" `
+                      -IssuerName self `
+                      -RenewAtNumberOfDaysBeforeExpiry 30
+            Add-AzKeyVaultCertificate -VaultName $env:KEYVAULT_NAME -Name $env:KVCERT_NAME_AGW -CertificatePolicy $policy
+          }

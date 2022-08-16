@@ -1,0 +1,63 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: funcProjectPath
+  type: string
+- name: funcPublishPath
+  type: string
+- name: funcArtifactName
+  type: string
+- name: funcPackageFileName
+  type: string
+
+stages:
+- stage: FuncAppBuildDeploy
+  jobs:
+  - job: FuncAppBuildDeploy
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: UseDotNet@2
+      displayName: Use .NET 6 sdk
+      inputs:
+        packageType: sdk
+        version: 6.0.x
+        installationPath: $(DOTNET_PATH)
+    - task: DotNetCoreCLI@2
+      displayName: dotnet restore
+      inputs:
+        command: restore
+        projects: ${{ parameters.funcProjectPath }}
+    - task: DotNetCoreCLI@2
+      displayName: dotnet build
+      inputs:
+        command: build
+        projects: ${{ parameters.funcProjectPath }}
+        arguments: --configuration $(BUILD_CONFIGURATION) /WarnAsError
+    - task: DotNetCoreCLI@2
+      displayName: Publish publish
+      inputs:
+        command: publish
+        projects: ${{ parameters.funcProjectPath }}
+        publishWebProjects: false
+        zipAfterPublish: true
+        arguments: --configuration $(BUILD_CONFIGURATION) --output ${{ parameters.funcPublishPath }}
+    - task: PublishBuildArtifacts@1
+      displayName: Publish build artifacts
+      inputs:
+        PathtoPublish: ${{ parameters.funcPublishPath }}
+        ArtifactName: ${{ parameters.funcArtifactName }}
+        publishLocation: Container
+    - task: DownloadBuildArtifacts@0
+      displayName: Download artifacts
+      inputs:
+        buildType: current
+        downloadType: single
+        artifactName: ${{ parameters.funcArtifactName }}
+        downloadPath: $(Build.StagingDirectory)
+    - task: AzureFunctionApp@1
+      displayName: Azure Function App Deploy
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        appName: $(FUNCAPP_NAME)
+        package: $(Build.StagingDirectory)/${{ parameters.funcArtifactName }}/${{ parameters.funcPackageFileName }}

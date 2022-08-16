@@ -1,0 +1,22 @@
+parameters:
+- name: azureSvcName
+  type: string
+
+stages:
+- stage: RestartAppGateway
+  jobs:
+  - job: RestartAppGateway
+    pool:
+      vmImage: ubuntu-latest
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: AzureCLI@2
+      displayName: Restart Application Gateway
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az network application-gateway stop --resource-group $(RESOURCE_GROUP_NAME) --name $(APPGATEWAY_NAME)
+          az network application-gateway start --resource-group $(RESOURCE_GROUP_NAME) --name $(APPGATEWAY_NAME)

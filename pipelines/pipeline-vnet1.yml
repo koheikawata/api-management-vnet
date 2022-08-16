@@ -1,0 +1,83 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+- group: vg-sample
+- template: ./templates/variables.yml
+
+stages:
+- template: ./templates/cert-appgateway.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadObjectidSvc: $(AAD_OBJECTID_SVC)
+- template: ./templates/keyvault-secret.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadObjectidSvc: $(AAD_OBJECTID_SVC)
+    PipelineSecrets:
+      secret1:
+        name: SQL_PASS
+        secret: $(SQL_PASS)
+        kvsecretname: $(KVSECRET_NAME_SQLPASS)
+      secret2:
+        name: AAD_SECRET_CLIENT
+        secret: $(AAD_SECRET_CLIENT)
+        kvsecretname: $(KVSECRET_NAME_AADCLIENT)
+      secret3:
+        name: AZP_TOKEN
+        secret: $(AZP_TOKEN)
+        kvsecretname: $(KVSECRET_NAME_AZP_TOKEN)
+- template: ./templates/azure-resource.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadNameSvc: $(AAD_NAME_SVC)
+    aadObjectidSvc: $(AAD_OBJECTID_SVC)
+    aadAppidBackend: $(AAD_APPID_BACKEND)
+    aadTenantid: $(AAD_TENANTID)
+    bicepFilePath: $(Build.SourcesDirectory)/src/bicep/vnet/main1.bicep
+    bicepParameterFilePath: $(Build.SourcesDirectory)/src/bicep/vnet/main.parameters.json
+- template: ./templates/restart-appgateway.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+- template: ./templates/self-hosted-agent.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadObjectidSvc: $(AAD_OBJECTID_SVC)
+    winDockerfileDirectory: $(Build.SourcesDirectory)/src/self-hosted-agent/windows
+    winBicepFilePath: $(Build.SourcesDirectory)/src/bicep/self-hosted-agent/windows-agent.bicep
+    winBicepParameterFilePath: $(Build.SourcesDirectory)/src/bicep/self-hosted-agent/windows-agent.parameters.json
+    linDockerfileDirectory: $(Build.SourcesDirectory)/src/self-hosted-agent/linux
+    linBicepFilePath: $(Build.SourcesDirectory)/src/bicep/self-hosted-agent/linux-agent.bicep
+    linBicepParameterFilePath: $(Build.SourcesDirectory)/src/bicep/self-hosted-agent/linux-agent.parameters.json
+- template: ./templates/sql.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    dacpacSolutionPath: $(Build.SourcesDirectory)/src/apps/WeatherDb/WeatherDb.sln
+    dacpacPublishPath: $(Build.SourcesDirectory)/src/apps/WeatherDb/WeatherDb/bin/$(BUILD_CONFIGURATION)
+    dacpacArtifactName: SqlBuildOutputs
+    dacpacFileName: WeatherDb.dacpac
+- template: ./templates/func.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    funcProjectPath: $(Build.SourcesDirectory)/src/apps/ServicebusListener/ServicebusListener/ServicebusListener.csproj
+    funcPublishPath: $(Build.SourcesDirectory)/publish
+    funcArtifactName: FuncBuildOutputs
+    funcPackageFileName: ServicebusListener.zip
+- template: ./templates/webapi.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    apiProjectDirectory: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)
+    apiProjectPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/$(API_NAME).csproj
+    apiTestProjectPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)Tests/$(API_NAME)Tests.csproj
+    apiPublishPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/publish
+    swaggerPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/swagger.json
+    apiDllPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/bin/$(BUILD_CONFIGURATION)/net6.0/$(API_NAME).dll
+- template: ./templates/integration-test-powershell.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadTenantId: $(AAD_TENANTID)
+    aadAppidClient: $(AAD_APPID_CLIENT)
+    aadAppidBackend: $(AAD_APPID_BACKEND)
+    url: https://$(APPSERVICE_NAME).$(LOCATION).cloudapp.azure.com

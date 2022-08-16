@@ -1,0 +1,63 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: aadNameSvc
+  type: string
+- name: aadObjectidSvc
+  type: string
+- name: aadAppidBackend
+  type: string
+- name: aadTenantid
+  type: string
+- name: bicepFilePath
+  type: string
+- name: bicepParameterFilePath
+  type: string
+
+stages:
+- stage: AzureResourceDeployment
+  jobs:
+  - job: AzureResourceDeployment
+    pool:
+      vmImage: windows-latest
+    timeoutInMinutes: 0
+    variables:
+    - template: ./variables.yml
+    - name: SqlPass
+      value: $[ stageDependencies.KeyVault.SQL_PASS.outputs['SQL_PASS.SQL_PASS'] ]
+    - name: AadSecretClient
+      value: $[ stageDependencies.KeyVault.AAD_SECRET_CLIENT.outputs['AAD_SECRET_CLIENT.AAD_SECRET_CLIENT'] ]
+    - name: AzpToken
+      value: $[ stageDependencies.KeyVault.AZP_TOKEN.outputs['AZP_TOKEN.AZP_TOKEN'] ]
+    steps:
+    - task: AzureCLI@2
+      displayName: Deploy Azure resources
+      env:
+        SqlPass: $(SqlPass)
+        AadSecretClient: $(AadSecretClient)
+        AzpToken: $(AzpToken)
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        scriptType: ps
+        scriptLocation: inlineScript
+        errorActionPreference: silentlyContinue
+        inlineScript: |
+          az group create --name $(RESOURCE_GROUP_NAME) --location $(LOCATION)
+          az deployment group create --resource-group $(RESOURCE_GROUP_NAME) --template-file ${{ parameters.bicepFilePath }} `
+            --parameters ${{ parameters.bicepParameterFilePath }} `
+              base_name=$(BASE_NAME) `
+              environment_symbol=$(ENVIRONMENT_SYMBOL) `
+              kvcert_name_agw=$(KVCERT_NAME_AGW) `
+              kvsecret_name_sqlpass=$(KVSECRET_NAME_SQLPASS) `
+              kvsecret_name_sqlcs=$(KVSECRET_NAME_SQLCS) `
+              kvsecret_name_sbcs=$(KVSECRET_NAME_SBCS) `
+              kvsecret_name_aadclient=$(KVSECRET_NAME_AADCLIENT) `
+              kvsecret_name_azptoken=$(KVSECRET_NAME_AZP_TOKEN) `
+              api_name=$(API_NAME) `
+              aad_name_svc=${{ parameters.aadNameSvc }} `
+              aad_objectid_svc=${{ parameters.aadObjectidSvc }} `
+              aad_appid=${{ parameters.aadAppidBackend }} `
+              aad_tenantid=${{ parameters.aadTenantid }} `
+              sql_pass=$(SqlPass) `
+              aad_secret_client=$(AadSecretClient) `
+              azp_token=$(AzpToken)

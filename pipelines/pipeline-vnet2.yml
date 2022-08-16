@@ -1,0 +1,60 @@
+trigger: none
+
+pool:
+  name: Default
+
+variables:
+- group: vg-sample
+- template: ./templates/variables.yml
+
+stages:
+- template: ./templates/integration-test-bash.yml
+  parameters:
+    stageName: PreIntegrationTest
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadTenantId: $(AAD_TENANTID)
+    aadAppidClient: $(AAD_APPID_CLIENT)
+    aadAppidBackend: $(AAD_APPID_BACKEND)
+    url: https://$(APPSERVICE_NAME).$(LOCATION).cloudapp.azure.com
+- template: ./templates/private-endpoints.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadNameSvc: $(AAD_NAME_SVC)
+    aadObjectidSvc: $(AAD_OBJECTID_SVC)
+    bicepFilePath: $(Build.SourcesDirectory)/src/bicep/vnet/main2.bicep
+    bicepParameterFilePath: $(Build.SourcesDirectory)/src/bicep/vnet/main.parameters.json
+- template: ./templates/restart-appgateway.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+- template: ./templates/integration-test-bash.yml
+  parameters:
+    stageName: PrivateEndpointIntegrationTest
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadTenantId: $(AAD_TENANTID)
+    aadAppidClient: $(AAD_APPID_CLIENT)
+    aadAppidBackend: $(AAD_APPID_BACKEND)
+    url: https://$(APPSERVICE_NAME).$(LOCATION).cloudapp.azure.com
+- template: ./templates/func.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    funcProjectPath: $(Build.SourcesDirectory)/src/apps/ServicebusListener/ServicebusListener/ServicebusListener.csproj
+    funcPublishPath: $(Build.SourcesDirectory)/publish
+    funcArtifactName: FuncBuildOutputs
+    funcPackageFileName: ServicebusListener.zip
+- template: ./templates/webapi.yml
+  parameters:
+    azureSvcName: $(AZURE_SVC_NAME)
+    apiProjectDirectory: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)
+    apiProjectPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/$(API_NAME).csproj
+    apiTestProjectPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)Tests/$(API_NAME)Tests.csproj
+    apiPublishPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/publish
+    swaggerPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/swagger.json
+    apiDllPath: $(Build.SourcesDirectory)/src/apps/$(API_NAME)/$(API_NAME)/bin/$(BUILD_CONFIGURATION)/net6.0/$(API_NAME).dll
+- template: ./templates/integration-test-bash.yml
+  parameters:
+    stageName: CodeUpdateIntegrationTest
+    azureSvcName: $(AZURE_SVC_NAME)
+    aadTenantId: $(AAD_TENANTID)
+    aadAppidClient: $(AAD_APPID_CLIENT)
+    aadAppidBackend: $(AAD_APPID_BACKEND)
+    url: https://$(APPSERVICE_NAME).$(LOCATION).cloudapp.azure.com

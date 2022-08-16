@@ -1,0 +1,76 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: aadTenantId
+  type: string
+- name: aadAppidClient
+  type: string
+- name: aadAppidBackend
+  type: string
+- name: url
+  type: string
+
+stages:
+- stage: IntegrationTest
+  jobs:
+  - job: IntegrationTest
+    pool:
+      vmImage: windows-latest
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: AzurePowerShell@5
+      continueOnError: true
+      displayName: Execute integration test
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        azurePowerShellVersion: latestVersion
+        pwsh: true
+        ScriptType: InlineScript
+        Inline: |
+          $Uri = "${{ parameters.url }}/$env:API_NAME/Weatherforecast"
+          $UriMessage = "${{ parameters.url }}/$env:API_NAME/Weatherforecast/message"
+          $clientSecret = Get-AzKeyVaultSecret -VaultName $env:KEYVAULT_NAME -Name $env:KVSECRET_NAME_AADCLIENT -AsPlainText
+          $authorizeUri = "https://login.microsoftonline.com/${{ parameters.aadTenantId }}/oauth2/v2.0/token"
+          $body = 'grant_type=client_credentials' + `
+          '&client_id=${{ parameters.aadAppidClient }}' + `
+          '&client_secret=' + $clientSecret + `
+          '&scope=api://${{ parameters.aadAppidBackend }}/.default'
+          $token = (Invoke-RestMethod -Method Post -Uri $authorizeUri -Body $body).access_token
+          $headers = @{
+            'Content-Type' = 'application/json'
+            'Authorization' = 'Bearer ' + $token
+          }
+          echo "GET"
+          Invoke-RestMethod -Method Get -Uri $Uri -Headers $headers -SkipCertificateCheck
+          $bodyPost = @{
+            country = "Japan"
+            city = "Tokyo"
+            temperatureC = "35"
+            summary = "Sunny"
+          } | ConvertTo-Json
+          $resultPost = Invoke-RestMethod -Method Post -Uri $Uri -Headers $headers -Body $bodyPost -SkipCertificateCheck
+          $bodyMessage = @{
+            country = "New Zealand"
+            city = "Auckland"
+            temperatureC = "10"
+            summary = "Cloudy"
+          } | ConvertTo-Json
+          $resultMessage = Invoke-RestMethod -Method Post -Uri $UriMessage -Headers $headers -Body $bodyMessage -SkipCertificateCheck
+          Start-Sleep -Seconds 10
+          echo "GET after POST"
+          Invoke-RestMethod -Method Get -Uri $Uri -Headers $headers -SkipCertificateCheck
+          $resultPostId = $resultPost.id
+          $bodyDelete = @{
+            id = "$resultPostId"
+          } | ConvertTo-Json
+          Invoke-RestMethod -Method Delete -Uri $Uri -Headers $headers -Body $bodyDelete -SkipCertificateCheck
+          echo "Deleted a record with ID: $resultPostId"
+          $resultMessageId = $resultMessage.id
+          $bodyDeleteMessage = @{
+            id = "$resultMessageId"
+          } | ConvertTo-Json
+          Invoke-RestMethod -Method Delete -Uri $Uri -Headers $headers -Body $bodyDeleteMessage -SkipCertificateCheck
+          echo "Deleted a record with ID: $resultMessageId"
+          echo "GET after DELETE"
+          Invoke-RestMethod -Method Get -Uri $Uri -Headers $headers -SkipCertificateCheck

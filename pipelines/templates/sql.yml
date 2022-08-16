@@ -1,0 +1,47 @@
+parameters:
+- name: azureSvcName
+  type: string
+- name: dacpacSolutionPath
+  type: string
+- name: dacpacPublishPath
+  type: string
+- name: dacpacArtifactName
+  type: string
+- name: dacpacFileName
+  type: string
+
+stages:
+- stage: DacPacDeploy
+  jobs:
+  - job: DacPacDeploy
+    pool:
+      vmImage: windows-latest
+    variables:
+    - template: ./variables.yml
+    steps:
+    - task: VSBuild@1
+      displayName: Build SQL project
+      inputs:
+        solution: ${{ parameters.dacpacSolutionPath }}
+        platform: Any CPU
+        configuration: $(BUILD_CONFIGURATION)
+    - task: PublishPipelineArtifact@1
+      displayName: Publish SQL project
+      inputs:
+        targetPath: ${{ parameters.dacpacPublishPath }}
+        artifactName: ${{ parameters.dacpacArtifactName }}
+    - task: DownloadPipelineArtifact@2
+      displayName: Download DACPAC
+      inputs:
+        artifact: ${{ parameters.dacpacArtifactName }}
+        downloadPath: $(Build.StagingDirectory)
+    - task: SqlAzureDacpacDeployment@1
+      displayName: Deploy DACPAC
+      inputs:
+        azureSubscription: ${{ parameters.azureSvcName }}
+        AuthenticationType: servicePrincipal
+        ServerName: $(SQL_SERVER_NAME).database.windows.net
+        DatabaseName: $(SQL_DATABASE_NAME)
+        ipDetectionMethod: AutoDetect
+        DeleteFirewallRule: true
+        DacpacFile: $(Build.StagingDirectory)/${{ parameters.dacpacFileName }}

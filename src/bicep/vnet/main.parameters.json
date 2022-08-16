@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vnet_ipprefix_1": { "value": "10.0.0.0/16" },
+    "vnet_ipprefix_2": { "value": "10.1.0.0/16" },
+    "vnet_ipprefix_3": { "value": "10.2.0.0/16" },
+    "snet_prefix_1_agw": { "value": "10.0.0.0/24" },
+    "snet_prefix_1_apim": { "value": "10.0.10.0/24" },
+    "snet_prefix_2_ase_vi": { "value": "10.1.0.0/24" },
+    "snet_prefix_2_ase_pe": { "value": "10.1.10.0/24" },
+    "snet_prefix_2_sql": { "value": "10.1.20.0/24" },
+    "snet_prefix_2_kv": { "value": "10.1.30.0/24" },
+    "snet_prefix_2_func_vi": { "value": "10.1.40.0/24" },
+    "snet_prefix_2_func_pe": { "value": "10.1.50.0/24" },
+    "snet_prefix_2_shagent": { "value": "10.1.60.0/24" },
+    "snet_prefix_3_sb": { "value": "10.2.0.0/24" },
+    "sql_username": { "value": "testuser" },
+    "sb_topic_name": { "value": "sb2func" },
+    "sb_subscr_name": { "value": "func" }
+  }
+}
