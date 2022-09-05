@@ -1,6 +1,16 @@
 # Overview
 This template includes a sample Web API architecture with and without virtual networks and pipelines that automate deployment and integration test process. The pipelines deploy Azure resources and sample codes for the Web API and Functions, and then send requests to the API in the integration steps. Follow the instruction in [Getting-Started](./docs/Getting-started.md) to run this template.
 
+## Reference
+
+- [Virtual Network architecture 1 - Do I need virtual network?](https://dev.to/koheikawata/virtual-network-architecture-1-do-i-need-virtual-network-1nhk)
+- [Virtual Network architecture 2 - Deployment pipelines](https://dev.to/koheikawata/virtual-network-architecture-2-deployment-pipelines-39p5)
+- [Virtual Network architecture 3 - Key Vault Private Endpoint](https://dev.to/koheikawata/virtual-network-architecture-3-key-vault-private-endpoint-43nj)
+- [Virtual Network architecture 4 - SQL Database Private Endpoit](https://dev.to/koheikawata/virtual-network-architecture-4-sql-database-private-endpoit-49o2)
+- [Virtual Network architecture 5 - App Service Private Endpoint](https://dev.to/koheikawata/virtual-network-architecture-5-app-service-private-endpoint-5eao)
+- [Virtual Network architecture 6 - Service Bus Private Endpoint](https://dev.to/koheikawata/virtual-network-architecture-6-service-bus-private-endpoint-oa)
+- [Virtual Network architecture 7 - Self-hosted agent](https://dev.to/koheikawata/virtual-network-architecture-7-self-hosted-agent-32j4)
+
 **Azure services used**
 
 - [Azure Active Directory](https://docs.microsoft.com/en-us/azure/active-directory/fundamentals/active-directory-whatis)
